@@ -27,7 +27,7 @@ def main():
     parser.add_argument(
         "--quality",
         default="medium",
-        choices=("x-low", "medium", "high"),
+        choices=("x-low", "medium", "high"), # x-low in STFT-VITS corresponds to a mini model
         help="Quality/size of model (default: medium)",
     )
     parser.add_argument(
@@ -67,8 +67,8 @@ def main():
     dict_args = vars(args)
     if args.quality == "x-low":
         dict_args["hidden_channels"] = 96
-        dict_args["inter_channels"] = 96
         dict_args["filter_channels"] = 384
+        dict_args["n_layers"] = 3
     elif args.quality == "high":
         dict_args["resblock"] = "1"
         dict_args["resblock_kernel_sizes"] = (3, 7, 11)
