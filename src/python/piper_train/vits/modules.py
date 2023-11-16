@@ -10,6 +10,7 @@ from torch.nn.utils import remove_weight_norm, weight_norm
 from .commons import fused_add_tanh_sigmoid_multiply, get_padding, init_weights
 from .transforms import piecewise_rational_quadratic_transform
 
+LRELU_SLOPE = 0.1
 
 class LayerNorm(nn.Module):
     def __init__(self, channels: int, eps: float = 1e-5):

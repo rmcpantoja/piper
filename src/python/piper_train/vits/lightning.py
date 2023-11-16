@@ -7,7 +7,7 @@ import torch
 from torch import autocast
 from torch.nn import functional as F
 from torch.utils.data import DataLoader, Dataset, random_split
-from pqmf import PQMF
+from .pqmf import PQMF
 from .commons import slice_segments
 from .dataset import Batch, PiperDataset, UtteranceCollate
 from .losses import discriminator_loss, feature_loss, generator_loss, kl_loss, subband_stft_loss
@@ -268,10 +268,11 @@ class VitsModel(pl.LightningModule):
         with autocast(self.device.type, enabled=False):
             # Generator loss
             loss_dur = torch.sum(l_length.float())
+            y_mel = y_mel.repeat(1, 1, 4)
             loss_mel = F.l1_loss(y_mel, y_hat_mel) * self.hparams.c_mel
             loss_kl = kl_loss(z_p, logs_q, m_p, logs_p, z_mask) * self.hparams.c_kl
 
-            loss_fm = feature_loss(fmap_r, fmap_g)
+            #loss_fm = feature_loss(fmap_r, fmap_g)
             loss_gen, _losses_gen = generator_loss(y_d_hat_g)
             if self.hparams.mb_istft_vits:
                 pqmf = PQMF(y.device)
@@ -279,7 +280,7 @@ class VitsModel(pl.LightningModule):
                 loss_subband = subband_stft_loss(self.hparams.fft_sizes, self.hparams.hop_sizes, self.hparams.win_lengths, y_mb, y_hat_mb)
             else:
                 loss_subband = torch.tensor(0.0)
-            loss_gen_all = loss_gen + loss_fm + loss_mel + loss_dur + loss_kl + loss_subband
+            loss_gen_all = loss_gen + loss_mel + loss_dur + loss_kl + loss_subband
 
             self.log("loss_gen_all", loss_gen_all)
 
