@@ -268,8 +268,7 @@ class VitsModel(pl.LightningModule):
         with autocast(self.device.type, enabled=False):
             # Generator loss
             loss_dur = torch.sum(l_length.float())
-            y_mel = y_mel.repeat(1, 1, 4)
-            loss_mel = F.l1_loss(y_mel, y_hat_mel) * self.hparams.c_mel
+            loss_mel = F.l1_loss(y_mel.repeat(1, 1, 4), y_hat_mel) * self.hparams.c_mel
             loss_kl = kl_loss(z_p, logs_q, m_p, logs_p, z_mask) * self.hparams.c_kl
 
             #loss_fm = feature_loss(fmap_r, fmap_g)
