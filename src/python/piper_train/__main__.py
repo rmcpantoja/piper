@@ -68,7 +68,8 @@ def main():
     if args.quality == "x-low":
         dict_args["hidden_channels"] = 96
         dict_args["filter_channels"] = 384
-        dict_args["n_layers"] = 3
+        dict_args["upsample_initial_channel"] = 128 # HiFi-GAN V2 (Small)
+        dict_args["n_layers"] = 3 # ISTFT-VITS
     elif args.quality == "high":
         dict_args["resblock"] = "1"
         dict_args["resblock_kernel_sizes"] = (3, 7, 11)
