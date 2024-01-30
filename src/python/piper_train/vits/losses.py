@@ -1,5 +1,5 @@
 import torch
-
+from stft_loss import MultiResolutionSTFTLoss
 
 def feature_loss(fmap_r, fmap_g):
     loss = 0
@@ -56,3 +56,10 @@ def kl_loss(z_p, logs_q, m_p, logs_p, z_mask):
     kl = torch.sum(kl * z_mask)
     l_kl = kl / torch.sum(z_mask)
     return l_kl
+
+def subband_stft_loss(fft_sizes, hop_sizes, win_lengths, y_mb, y_hat_mb):
+    sub_stft_loss = MultiResolutionSTFTLoss(fft_sizes, hop_sizes, win_lengths)
+    y_mb =  y_mb.view(-1, y_mb.size(2))
+    y_hat_mb = y_hat_mb.view(-1, y_hat_mb.size(2))
+    sub_sc_loss, sub_mag_loss = sub_stft_loss(y_hat_mb[:, :y_mb.size(-1)], y_mb)
+    return sub_sc_loss+sub_mag_loss

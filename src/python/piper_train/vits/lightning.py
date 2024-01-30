@@ -7,10 +7,10 @@ import torch
 from torch import autocast
 from torch.nn import functional as F
 from torch.utils.data import DataLoader, Dataset, random_split
-
+from .pqmf import PQMF
 from .commons import slice_segments
 from .dataset import Batch, PiperDataset, UtteranceCollate
-from .losses import discriminator_loss, feature_loss, generator_loss, kl_loss
+from .losses import discriminator_loss, feature_loss, generator_loss, kl_loss, subband_stft_loss
 from .mel_processing import mel_spectrogram_torch, spec_to_mel_torch
 from .models import MultiPeriodDiscriminator, SynthesizerTrn
 
@@ -44,6 +44,12 @@ class VitsModel(pl.LightningModule):
         mel_fmin: float = 0.0,
         mel_fmax: Optional[float] = None,
         # model
+        ms_istft_vits: bool = False,
+        mb_istft_vits: bool = False,
+        istft_vits: bool = True,
+        subbands: bool = False,
+        gen_istft_n_fft: int = 16,
+        gen_istft_hop_size: int = 4,
         inter_channels: int = 192,
         hidden_channels: int = 192,
         filter_channels: int = 768,
@@ -67,6 +73,10 @@ class VitsModel(pl.LightningModule):
         warmup_epochs: int = 0,
         c_mel: int = 45,
         c_kl: float = 1.0,
+        fft_sizes = [384, 683, 171],
+        hop_sizes = [30, 60, 10],
+        win_lengths = [150, 300, 60],
+        window: str = "hann_window",
         grad_clip: Optional[float] = None,
         num_workers: int = 1,
         seed: int = 1234,
@@ -100,9 +110,15 @@ class VitsModel(pl.LightningModule):
             upsample_rates=self.hparams.upsample_rates,
             upsample_initial_channel=self.hparams.upsample_initial_channel,
             upsample_kernel_sizes=self.hparams.upsample_kernel_sizes,
+            gen_istft_n_fft=self.hparams.gen_istft_n_fft,
+            gen_istft_hop_size=self.hparams.gen_istft_hop_size,
             n_speakers=self.hparams.num_speakers,
             gin_channels=self.hparams.gin_channels,
             use_sdp=self.hparams.use_sdp,
+            subbands=self.hparams.subbands,
+            ms_istft_vits=self.hparams.ms_istft_vits,
+            mb_istft_vits=self.hparams.mb_istft_vits,
+            istft_vits=self.hparams.istft_vits,
         )
         self.model_d = MultiPeriodDiscriminator(
             use_spectral_norm=self.hparams.use_spectral_norm
@@ -117,6 +133,7 @@ class VitsModel(pl.LightningModule):
         # State kept between training optimizers
         self._y = None
         self._y_hat = None
+        self._y_hat_mb = None
 
     def _load_datasets(
         self,
@@ -205,6 +222,7 @@ class VitsModel(pl.LightningModule):
         )
         (
             y_hat,
+            y_hat_mb,
             l_length,
             _attn,
             ids_slice,
@@ -213,7 +231,7 @@ class VitsModel(pl.LightningModule):
             (_z, z_p, m_p, logs_p, _m_q, logs_q),
         ) = self.model_g(x, x_lengths, spec, spec_lengths, speaker_ids)
         self._y_hat = y_hat
-
+        self._y_hat_mb = y_hat_mb
         mel = spec_to_mel_torch(
             spec,
             self.hparams.filter_length,
@@ -256,7 +274,19 @@ class VitsModel(pl.LightningModule):
 
             loss_fm = feature_loss(fmap_r, fmap_g)
             loss_gen, _losses_gen = generator_loss(y_d_hat_g)
-            loss_gen_all = loss_gen + loss_fm + loss_mel + loss_dur + loss_kl
+            if self.hparams.mb_istft_vits:
+                pqmf = PQMF(y.device)
+                y_mb = pqmf.analysis(y)
+                loss_subband = subband_stft_loss(
+                    self.hparams.fft_sizes,
+                    self.hparams.hop_sizes,
+                    self.hparams.win_lengths,
+                    y_mb,
+                    y_hat_mb
+                )
+            else:
+                loss_subband = torch.tensor(0.0)
+            loss_gen_all = loss_gen + loss_fm + loss_mel + loss_dur + loss_kl + loss_subband
 
             self.log("loss_gen_all", loss_gen_all)
 
@@ -266,6 +296,7 @@ class VitsModel(pl.LightningModule):
         # From training_step_g
         y = self._y
         y_hat = self._y_hat
+        y_hat_mb = self._y_hat_mb
         y_d_hat_r, y_d_hat_g, _, _ = self.model_d(y, y_hat.detach())
 
         with autocast(self.device.type, enabled=False):
@@ -287,7 +318,7 @@ class VitsModel(pl.LightningModule):
         for utt_idx, test_utt in enumerate(self._test_dataset):
             text = test_utt.phoneme_ids.unsqueeze(0).to(self.device)
             text_lengths = torch.LongTensor([len(test_utt.phoneme_ids)]).to(self.device)
-            scales = [0.667, 1.0, 0.8]
+            scales = [1.0, 1.0, 1.0]
             sid = (
                 test_utt.speaker_id.to(self.device)
                 if test_utt.speaker_id is not None
@@ -346,6 +377,10 @@ class VitsModel(pl.LightningModule):
             help="Exclude utterances with phoneme id lists longer than this",
         )
         #
+        parser.add_argument("--mb_istft_vits", type=bool, default=False)
+        parser.add_argument("--ms_istft_vits", type=bool, default=False)
+        parser.add_argument("--istft_vits", type=bool, default=True)
+        parser.add_argument("--subbands", type=bool, default=False)
         parser.add_argument("--hidden-channels", type=int, default=192)
         parser.add_argument("--inter-channels", type=int, default=192)
         parser.add_argument("--filter-channels", type=int, default=768)

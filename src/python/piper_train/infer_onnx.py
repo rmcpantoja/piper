@@ -23,8 +23,8 @@ def main():
     parser.add_argument("--model", required=True, help="Path to model (.onnx)")
     parser.add_argument("--output-dir", required=True, help="Path to write WAV files")
     parser.add_argument("--sample-rate", type=int, default=22050)
-    parser.add_argument("--noise-scale", type=float, default=0.667)
-    parser.add_argument("--noise-scale-w", type=float, default=0.8)
+    parser.add_argument("--noise-scale", type=float, default=1.0)
+    parser.add_argument("--noise-scale-w", type=float, default=1.0)
     parser.add_argument("--length-scale", type=float, default=1.0)
     args = parser.parse_args()
 
