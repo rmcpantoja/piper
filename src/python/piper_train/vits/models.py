@@ -9,8 +9,8 @@ from torch.nn.utils import remove_weight_norm, spectral_norm, weight_norm
 
 from . import attentions, commons, modules, monotonic_align
 from .commons import get_padding, init_weights
-from pqmf import PQMF
-from stft import TorchSTFT
+from .pqmf import PQMF
+from .stft import TorchSTFT
 
 
 class StochasticDurationPredictor(nn.Module):
