@@ -104,9 +104,7 @@ def main():
             (1, 3, 5),
             (1, 3, 5),
         )
-        dict_args["upsample_rates"] = (8, 8, 2, 2)
         dict_args["upsample_initial_channel"] = 512
-        dict_args["upsample_kernel_sizes"] = (16, 16, 4, 4)
 
     model = VitsModel(
         num_symbols=num_symbols,

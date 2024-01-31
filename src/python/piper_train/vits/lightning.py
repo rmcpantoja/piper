@@ -30,9 +30,9 @@ class VitsModel(pl.LightningModule):
             (2, 6),
             (3, 12),
         ),
-        upsample_rates=(8, 8, 4),
+        upsample_rates=(8, 8),
         upsample_initial_channel=256,
-        upsample_kernel_sizes=(16, 16, 8),
+        upsample_kernel_sizes=(16, 16),
         # mel
         filter_length: int = 1024,
         hop_length: int = 256,
@@ -269,6 +269,9 @@ class VitsModel(pl.LightningModule):
         with autocast(self.device.type, enabled=False):
             # Generator loss
             loss_dur = torch.sum(l_length.float())
+            # debug y_mel and y_hat_mel:
+            print(y_mel.size())
+            print(y_hat_mel.size())
             loss_mel = F.l1_loss(y_mel, y_hat_mel) * self.hparams.c_mel
             loss_kl = kl_loss(z_p, logs_q, m_p, logs_p, z_mask) * self.hparams.c_kl
 

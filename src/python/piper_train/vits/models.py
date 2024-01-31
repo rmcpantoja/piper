@@ -296,6 +296,7 @@ class PosteriorEncoder(nn.Module):
         m, logs = torch.split(stats, self.out_channels, dim=1)
         z = (m + torch.randn_like(m) * torch.exp(logs)) * x_mask
         return z, m, logs, x_mask
+
 class iSTFT_Generator(torch.nn.Module):
     def __init__(
         self,
@@ -347,6 +348,8 @@ class iSTFT_Generator(torch.nn.Module):
         self.post_n_fft = self.gen_istft_n_fft
         self.conv_post = weight_norm(Conv1d(ch, self.post_n_fft + 2, 7, 1, padding=3))
         self.ups.apply(init_weights)
+        if gin_channels != 0:
+            self.cond = nn.Conv1d(gin_channels, upsample_initial_channel, 1)
         self.conv_post.apply(init_weights)
         self.reflection_pad = torch.nn.ReflectionPad1d((1, 0))
         self.stft = TorchSTFT(
@@ -356,15 +359,18 @@ class iSTFT_Generator(torch.nn.Module):
     def forward(self, x, g=None):
         
         x = self.conv_pre(x)
-        for i in range(self.num_upsamples):
+        if g is not None:
+            x = x + self.cond(g)
+        for i, up in enumerate(self.ups):
             x = F.leaky_relu(x, self.LRELU_SLOPE)
-            x = self.ups[i](x)
+            x = up(x)
             xs = None
-            for j in range(self.num_kernels):
-                if xs is None:
-                    xs = self.resblocks[i*self.num_kernels+j](x)
-                else:
-                    xs += self.resblocks[i*self.num_kernels+j](x)
+            for j, resblock in enumerate(self.resblocks):
+                index = j - (i * self.num_kernels)
+                if index == 0:
+                    xs = resblock(x)
+                elif (index > 0) and (index < self.num_kernels):
+                    xs += resblock(x)
             x = xs / self.num_kernels
         x = F.leaky_relu(x)
         x = self.reflection_pad(x)
