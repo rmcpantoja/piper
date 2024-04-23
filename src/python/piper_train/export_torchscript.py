@@ -61,9 +61,9 @@ def main():
         sequences,
         sequence_lengths,
         sid,
-        torch.FloatTensor([0.667]),
         torch.FloatTensor([1.0]),
-        torch.FloatTensor([0.8]),
+        torch.FloatTensor([1.0]),
+        torch.FloatTensor([1.0]),
     )
 
     jitted_model = torch.jit.trace(model_g, dummy_input)

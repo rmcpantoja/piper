@@ -93,20 +93,21 @@ def main():
     dict_args = vars(args)
     if args.quality == "x-low":
         dict_args["hidden_channels"] = 96
-        dict_args["inter_channels"] = 96
-        dict_args["filter_channels"] = 384
+        dict_args["n_layers"] = 3
     elif args.quality == "high":
-        dict_args["resblock"] = "1"
-        dict_args["resblock_kernel_sizes"] = (3, 7, 11)
-        dict_args["resblock_dilation_sizes"] = (
-            (1, 3, 5),
-            (1, 3, 5),
-            (1, 3, 5),
-        )
-        dict_args["upsample_rates"] = (8, 8, 2, 2)
         dict_args["upsample_initial_channel"] = 512
         dict_args["upsample_kernel_sizes"] = (16, 16, 4, 4)
-
+    # Sampling Rate:
+    if sample_rate == "44100":
+        dict_args["segment_size"] = 16384
+        dict_args["fft_sizes"] = (768, 1366, 342)
+        dict_args["hop_sizes"] = (60, 120, 20)
+        dict_args["win_lengths"] = (300, 600, 120)
+        dict_args["filter_length"] = 2048
+        dict_args["hop_length"] = 512
+        dict_args["win_length"] = 2048
+        dict_args["upsample_rates"] = (8, 8, 2, 2, 2)
+        dict_args["upsample_kernel_sizes"] = (16, 16, 4, 4, 4)
     model = VitsModel(
         num_symbols=num_symbols,
         num_speakers=num_speakers,

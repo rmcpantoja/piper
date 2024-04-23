@@ -61,6 +61,7 @@ def main() -> None:
         "--dataset-format", choices=("ljspeech", "mycroft"), required=True
     )
     parser.add_argument("--cache-dir", help="Directory to cache processed audio files")
+    parser.add_argument("--use_mel_spec_posterior", type=bool, default=True)
     parser.add_argument("--max-workers", type=int)
     parser.add_argument(
         "--single-speaker", action="store_true", help="Force single speaker dataset"
@@ -179,7 +180,7 @@ def main() -> None:
                 "language": {
                     "code": args.language,
                 },
-                "inference": {"noise_scale": 0.667, "length_scale": 1, "noise_w": 0.8},
+                "inference": {"noise_scale": 1.0, "length_scale": 1, "noise_w": 1.0},
                 "phoneme_type": args.phoneme_type.value,
                 "phoneme_map": {},
                 "phoneme_id_map": get_codepoints_map()[args.language]
@@ -312,11 +313,21 @@ def phonemize_batch_espeak(
                         missing_phonemes=utt.missing_phonemes,
                     )
                     if not args.skip_audio:
+                        if args.sample_rate == 44100:
+                            audio_args = {
+                                'filter_length': 2048,
+                                'window_length': 2048,
+                                'hop_length': 512
+                            }
+                        else:
+                            audio_args = {}
                         utt.audio_norm_path, utt.audio_spec_path = cache_norm_audio(
                             utt.audio_path,
                             args.cache_dir,
                             silence_detector,
                             args.sample_rate,
+                            use_mel_spec_posterior = args.use_mel_spec_posterior,
+                            **audio_args,
                         )
                     queue_out.put(utt)
                 except TimeoutError:

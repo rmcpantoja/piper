@@ -5,7 +5,7 @@ from typing import Optional, Tuple, Union
 import librosa
 import torch
 
-from piper_train.vits.mel_processing import spectrogram_torch
+from piper_train.vits.mel_processing import spectrogram_torch, mel_spectrogram_torch
 
 from .trim import trim_silence
 from .vad import SileroVoiceActivityDetector
@@ -31,6 +31,8 @@ def cache_norm_audio(
     window_length: int = 1024,
     hop_length: int = 256,
     ignore_cache: bool = False,
+    use_mel_spec_posterior: bool = True,
+    n_mels: int = 80
 ) -> Tuple[Path, Path]:
     audio_path = Path(audio_path).absolute()
     cache_dir = Path(cache_dir)
@@ -40,7 +42,8 @@ def cache_norm_audio(
 
     audio_norm_path = cache_dir / f"{audio_cache_id}.pt"
     audio_spec_path = cache_dir / f"{audio_cache_id}.spec.pt"
-
+    if use_mel_spec_posterior:
+        audio_spec_path = audio_spec_path.replace(".spec.pt", ".mel.pt")
     # Normalize audio
     audio_norm_tensor: Optional[torch.FloatTensor] = None
     if ignore_cache or (not audio_norm_path.exists()):
@@ -78,15 +81,25 @@ def cache_norm_audio(
         if audio_norm_tensor is None:
             # Load pre-cached normalized audio
             audio_norm_tensor = torch.load(audio_norm_path)
-
-        audio_spec_tensor = spectrogram_torch(
-            y=audio_norm_tensor,
-            n_fft=filter_length,
-            sampling_rate=sample_rate,
-            hop_size=hop_length,
-            win_size=window_length,
-            center=False,
-        ).squeeze(0)
+        if self.use_mel_spec_posterior:
+            audio_spec_tensor = mel_spectrogram_torch(
+                y=audio_norm_tensor,
+                n_fft=filter_length,
+                num_mels = n_mels,
+                sampling_rate=sample_rate,
+                hop_size=hop_length,
+                win_size=window_length,
+                center=False,
+            ).squeeze(0)
+        else:
+            audio_spec_tensor = spectrogram_torch(
+                y=audio_norm_tensor,
+                n_fft=filter_length,
+                sampling_rate=sample_rate,
+                hop_size=hop_length,
+                win_size=window_length,
+                center=False,
+            ).squeeze(0)
         torch.save(audio_spec_tensor, audio_spec_path)
 
     return audio_norm_path, audio_spec_path
