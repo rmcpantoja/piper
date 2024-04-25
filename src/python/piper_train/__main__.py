@@ -5,7 +5,7 @@ from pathlib import Path
 
 import torch
 from pytorch_lightning import Trainer
-from pytorch_lightning.callbacks import ModelCheckpoint
+from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 
 from .vits.lightning import VitsModel
 
@@ -26,6 +26,11 @@ def main():
         "--checkpoint-epochs",
         type=int,
         help="Save checkpoint every N epochs (default: 1)",
+    )
+    parser.add_argument(
+        "--patience",
+        type=int,
+        help="Number of validation cycles to allow to pass without improvement before stopping training"
     )
     parser.add_argument(
         "--quality",
@@ -76,19 +81,22 @@ def main():
         num_speakers = int(config["num_speakers"])
         sample_rate = int(config["audio"]["sample_rate"])
 
-    trainer = Trainer.from_argparse_args(args)
+    callbacks = []
     if args.checkpoint_epochs is not None:
-        trainer.callbacks = [ModelCheckpoint(
-            every_n_epochs=args.checkpoint_epochs,
-            save_top_k=args.num_ckpt,
-            save_last=args.save_last
-        )]
+        callbacks.append(
+            ModelCheckpoint(every_n_epochs=args.checkpoint_epochs, monitor="val_loss", save_top_k=args.num_ckpt, save_last=args.save_last, mode="min")
+        )
         _LOGGER.debug(
             "Checkpoints will be saved every %s epoch(s)", args.checkpoint_epochs
         )
         _LOGGER.debug(
             "%s Checkpoints will be saved", args.num_ckpt
         )
+    if args.patience is not None:
+        callbacks.append(
+            EarlyStopping(monitor="val_loss", min_delta=0.00, patience=args.patience, verbose=False, mode="min")
+        )
+    trainer = Trainer.from_argparse_args(args, callbacks=callbacks)
 
     dict_args = vars(args)
     if args.quality == "x-low":
