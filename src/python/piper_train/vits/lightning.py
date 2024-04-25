@@ -368,8 +368,8 @@ class VitsModel(pl.LightningModule):
         self._y = y
 
         _y_d_hat_r, y_d_hat_g, fmap_r, fmap_g = self.model_d(y, y_hat)
-        if net_dur_disc is not None:
-            y_dur_hat_r, y_dur_hat_g = net_dur_disc(hidden_x, x_mask, logw_, logw)
+        if self.net_dur_disc is not None:
+            y_dur_hat_r, y_dur_hat_g = self.net_dur_disc(hidden_x, x_mask, logw_, logw)
         with autocast(self.device.type, enabled=False):
             # Generator loss
             loss_dur = torch.sum(l_length.float())
@@ -414,13 +414,15 @@ class VitsModel(pl.LightningModule):
 
     def training_step_dur(self, batch: Batch):
         if self.net_dur_disc is not None:
-            y_dur_hat_r, y_dur_hat_g = net_dur_disc(
+            y_dur_hat_r, y_dur_hat_g = self.net_dur_disc(
                 self.hidden_x.detach(), self.x_mask.detach(), self.logw_.detach(), self.logw.detach()
             )  # logw is predicted duration, logw_ is real duration
             with autocast(self.device.type, enabled=False):
                 loss_dur_disc, losses_dur_disc_r, losses_dur_disc_g = discriminator_loss(y_dur_hat_r, y_dur_hat_g)
                 loss_dur_disc_all = loss_dur_disc
                 self.log("loss_dur_disc_all", loss_dur_disc_all)
+
+                return loss_dur_disc_all
 
     def validation_step(self, batch: Batch, batch_idx: int):
         val_loss = self.training_step_g(batch) + self.training_step_d(batch) + self.training_step_dur(batch)

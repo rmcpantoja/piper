@@ -1675,7 +1675,7 @@ class SynthesizerTrn(nn.Module):
             self.emb_g = nn.Embedding(n_speakers, gin_channels)
 
     def forward(self, x, x_lengths, y, y_lengths, sid=None):
-        if self.n_speakers > 0:
+        if self.n_speakers > 1:
             g = self.emb_g(sid).unsqueeze(-1)  # [b, h, 1]
         else:
             g = None
@@ -1754,7 +1754,7 @@ class SynthesizerTrn(nn.Module):
         noise_scale_w=1.,
         max_len=None,
     ):
-        if self.n_speakers > 0:
+        if self.n_speakers > 1:
             assert sid is not None, "Missing speaker id"
             g = self.emb_g(sid).unsqueeze(-1)  # [b, h, 1]
         else:
