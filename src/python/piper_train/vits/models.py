@@ -9,8 +9,8 @@ from torch.nn.utils import remove_weight_norm, spectral_norm, weight_norm
 
 from . import attentions, commons, modules, monotonic_align
 from .commons import get_padding, init_weights
-from pqmf import PQMF
-from stft import TorchSTFT, OnnxSTFT
+from .pqmf import PQMF
+from .stft import TorchSTFT, OnnxSTFT
 
 AVAILABLE_FLOW_TYPES = ["pre_conv", "pre_conv2", "fft", "mono_layer_inter_residual", "mono_layer_post_residual"]
 AVAILABLE_DURATION_DISCRIMINATOR_TYPES = {"dur_disc_1": "DurationDiscriminator", "dur_disc_2": "DurationDiscriminator2"}
@@ -169,7 +169,7 @@ class DurationPredictor(nn.Module):
         return x * x_mask
 
 
-class DurationDiscriminator(nn.Module):  # vits2
+class DurationDiscriminatorV1(nn.Module):  # vits2
     # TODO : not using "spk conditioning" for now according to the paper.
     # Can be a better discriminator if we use it.
     def __init__(
@@ -254,7 +254,7 @@ class DurationDiscriminator(nn.Module):  # vits2
         return output_probs
 
 
-class DurationDiscriminator2(nn.Module):  # vits2 - DurationDiscriminator2
+class DurationDiscriminatorV2(nn.Module):  # vits2 - DurationDiscriminator2
     # TODO : not using "spk conditioning" for now according to the paper.
     # Can be a better discriminator if we use it.
     def __init__(

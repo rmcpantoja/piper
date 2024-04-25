@@ -15,12 +15,12 @@ from .mel_processing import mel_spectrogram_torch, spec_to_mel_torch
 from .models import (
     SynthesizerTrn, 
     MultiPeriodDiscriminator,
-    DurationDiscriminator,
-    DurationDiscriminator2,
+    DurationDiscriminatorV1,
+    DurationDiscriminatorV2,
     AVAILABLE_FLOW_TYPES,
     AVAILABLE_DURATION_DISCRIMINATOR_TYPES
 )
-from pqmf import PQMF
+from .pqmf import PQMF
 
 _LOGGER = logging.getLogger("vits.lightning")
 
@@ -44,11 +44,13 @@ class VitsModel(pl.LightningModule):
         # Vits2
         use_mel_posterior_encoder: bool = True,
         use_duration_discriminator: bool = True,
-        duration_discriminator_type: str = dur_disc_2,
+        duration_discriminator_type: str = "dur_disc_2",
         use_transformer_flows: bool = True,
         transformer_flow_type: str = "pre_conv2",
         use_spk_conditioned_encoder: bool = False,
         use_noise_scaled_mas: bool = True,
+        mas_noise_scale_initial: float = 0.01,
+        noise_scale_delta = 2e-6,
         # mel
         filter_length: int = 1024,
         hop_length: int = 256,
@@ -99,6 +101,7 @@ class VitsModel(pl.LightningModule):
         num_test_examples: int = 5,
         validation_split: float = 0.1,
         max_phoneme_ids: Optional[int] = None,
+        **kwargs,
     ):
         super().__init__()
         self.save_hyperparameters()
@@ -115,7 +118,7 @@ class VitsModel(pl.LightningModule):
             self.posterior_channels = self.hparams.filter_length // 2 + 1
 
         # More VITS2 features:
-        if hparams.use_transformer_flows == True:
+        if self.hparams.use_transformer_flows == True:
             self.transformer_flow_type = self.hparams.transformer_flow_type
             print(f"Using transformer flows {self.transformer_flow_type} for VITS2")
             assert self.transformer_flow_type in AVAILABLE_FLOW_TYPES, f"transformer_flow_type must be one of {AVAILABLE_FLOW_TYPES}"
@@ -123,13 +126,13 @@ class VitsModel(pl.LightningModule):
             print("Using normal flows for VITS1")
 
         if self.hparams.use_spk_conditioned_encoder == True:
-            if self.hparams.n_speakers == 0:
-                print("Warning: use_spk_conditioned_encoder is True but n_speakers is 0")
+            if self.hparams.num_speakers == 0:
+                print("Warning: use_spk_conditioned_encoder is True but num_speakers is 0")
             print("Setting use_spk_conditioned_encoder to False as model is a single speaker model")
         else:
             print("Using normal encoder for VITS1 (cuz it's single speaker after all)")
 
-        if self.hparams.use_noise_scaled_mas == True:
+        if self.hparams.use_noise_scaled_mas:
             print("Using noise scaled MAS for VITS2")
             self.mas_noise_scale_initial = 0.01
             self.noise_scale_delta = 2e-6
@@ -181,26 +184,26 @@ class VitsModel(pl.LightningModule):
             # print("Using duration discriminator for VITS2")
             #- for duration_discriminator2
             # duration_discriminator_type = getattr(hps.model, "duration_discriminator_type", "dur_disc_1")
-            duration_discriminator_type = hparams.duration_discriminator_type
+            duration_discriminator_type = self.hparams.duration_discriminator_type
             print(f"Using duration discriminator {duration_discriminator_type} for VITS2")
             assert duration_discriminator_type in AVAILABLE_DURATION_DISCRIMINATOR_TYPES.keys(), f"duration_discriminator_type must be one of {list(AVAILABLE_DURATION_DISCRIMINATOR_TYPES.keys())}"
             #DurationDiscriminator = AVAILABLE_DURATION_DISCRIMINATOR_TYPES[duration_discriminator_type]
 
             if duration_discriminator_type == "dur_disc_1":
-                self.net_dur_disc = DurationDiscriminator(
+                self.net_dur_disc = DurationDiscriminatorV1(
                     self.hparams.hidden_channels,
                     self.hparams.hidden_channels,
                     3,
                     0.1,
-                    gin_channels=self.hparams.gin_channels if self.hparams.n_speakers != 0 else 0,
+                    gin_channels=self.hparams.gin_channels if self.hparams.num_speakers != 0 else 0,
                 )
             elif duration_discriminator_type == "dur_disc_2":
-                self.net_dur_disc = DurationDiscriminator2(
+                self.net_dur_disc = DurationDiscriminatorV2(
                     self.hparams.hidden_channels,
                     self.hparams.hidden_channels,
                     3,
                     0.1,
-                    gin_channels=self.hparams.gin_channels if self.hparams.n_speakers != 0 else 0,
+                    gin_channels=self.hparams.gin_channels if self.hparams.num_speakers != 0 else 0,
                 )
         else:
             print("NOT using any duration discriminator like VITS1")
@@ -309,9 +312,9 @@ class VitsModel(pl.LightningModule):
             batch.speaker_ids if batch.speaker_ids is not None else None,
         )
         # VITS2:
-        if self.model_g.module.use_noise_scaled_mas:
-            current_mas_noise_scale = self.model_g.module.mas_noise_scale_initial - self.model_g.module.noise_scale_delta * self.global_step
-            self.model_g.module.current_mas_noise_scale = max(current_mas_noise_scale, 0.0)
+        if self.model_g.use_noise_scaled_mas:
+            current_mas_noise_scale = self.model_g.mas_noise_scale_initial - self.model_g.noise_scale_delta * self.global_step
+            self.model_g.current_mas_noise_scale = max(current_mas_noise_scale, 0.0)
         (
             y_hat,
             y_hat_mb,

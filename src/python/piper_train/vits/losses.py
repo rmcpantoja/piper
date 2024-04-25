@@ -1,5 +1,5 @@
 import torch
-from stft_loss import MultiResolutionSTFTLoss
+from .stft_loss import MultiResolutionSTFTLoss
 
 
 def feature_loss(fmap_r, fmap_g):

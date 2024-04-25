@@ -41,9 +41,10 @@ def cache_norm_audio(
     audio_cache_id = sha256(str(audio_path).encode()).hexdigest()
 
     audio_norm_path = cache_dir / f"{audio_cache_id}.pt"
-    audio_spec_path = cache_dir / f"{audio_cache_id}.spec.pt"
     if use_mel_spec_posterior:
-        audio_spec_path = audio_spec_path.replace(".spec.pt", ".mel.pt")
+        audio_spec_path = cache_dir / f"{audio_cache_id}.mel.pt"
+    else:
+        audio_spec_path = cache_dir / f"{audio_cache_id}.spec.pt"
     # Normalize audio
     audio_norm_tensor: Optional[torch.FloatTensor] = None
     if ignore_cache or (not audio_norm_path.exists()):
@@ -81,7 +82,7 @@ def cache_norm_audio(
         if audio_norm_tensor is None:
             # Load pre-cached normalized audio
             audio_norm_tensor = torch.load(audio_norm_path)
-        if self.use_mel_spec_posterior:
+        if use_mel_spec_posterior:
             audio_spec_tensor = mel_spectrogram_torch(
                 y=audio_norm_tensor,
                 n_fft=filter_length,
@@ -89,6 +90,8 @@ def cache_norm_audio(
                 sampling_rate=sample_rate,
                 hop_size=hop_length,
                 win_size=window_length,
+                fmin = 0.0,
+                fmax = None,
                 center=False,
             ).squeeze(0)
         else:
