@@ -462,6 +462,7 @@ class VitsModel(pl.LightningModule):
             return super().on_validation_end()
 
     def configure_optimizers(self):
+        torch.autograd.set_detect_anomaly(True)
         optimizers = [
             torch.optim.AdamW(
                 self.model_g.parameters(),
