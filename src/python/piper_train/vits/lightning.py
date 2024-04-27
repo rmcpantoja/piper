@@ -118,14 +118,14 @@ class VitsModel(pl.LightningModule):
             self.posterior_channels = self.hparams.filter_length // 2 + 1
 
         # More VITS2 features:
-        if self.hparams.use_transformer_flows == True:
+        if self.hparams.use_transformer_flows:
             self.transformer_flow_type = self.hparams.transformer_flow_type
             print(f"Using transformer flows {self.transformer_flow_type} for VITS2")
             assert self.transformer_flow_type in AVAILABLE_FLOW_TYPES, f"transformer_flow_type must be one of {AVAILABLE_FLOW_TYPES}"
         else:
             print("Using normal flows for VITS1")
 
-        if self.hparams.use_spk_conditioned_encoder == True:
+        if self.hparams.use_spk_conditioned_encoder:
             if self.hparams.num_speakers == 0:
                 print("Warning: use_spk_conditioned_encoder is True but num_speakers is 0")
             print("Setting use_spk_conditioned_encoder to False as model is a single speaker model")
@@ -173,14 +173,14 @@ class VitsModel(pl.LightningModule):
             use_transformer_flows=self.hparams.use_transformer_flows,
             transformer_flow_type=self.hparams.transformer_flow_type,
             use_noise_scaled_mas=self.hparams.use_noise_scaled_mas,
-            mas_noise_scale_initial=self.hparams.mas_noise_scale_initial,
-            noise_scale_delta=self.hparams.noise_scale_delta,
+            mas_noise_scale_initial=self.mas_noise_scale_initial,
+            noise_scale_delta=self.noise_scale_delta,
         )
         self.model_d = MultiPeriodDiscriminator(
             use_spectral_norm=self.hparams.use_spectral_norm
         )
 
-        if self.hparams.use_duration_discriminator == True:
+        if self.hparams.use_duration_discriminator:
             # print("Using duration discriminator for VITS2")
             #- for duration_discriminator2
             # duration_discriminator_type = getattr(hps.model, "duration_discriminator_type", "dur_disc_1")
@@ -379,7 +379,7 @@ class VitsModel(pl.LightningModule):
             loss_fm = feature_loss(fmap_r, fmap_g)
             loss_gen, _losses_gen = generator_loss(y_d_hat_g)
             if self.hparams.mb_istft_vits:
-                pqmf = PQMF(y.device)
+                pqmf = PQMF(y)
                 y_mb = pqmf.analysis(y)
                 loss_subband = subband_stft_loss(
                     self.hparams.fft_sizes, self.hparams.hop_sizes, self.hparams.win_lengths,
@@ -413,9 +413,13 @@ class VitsModel(pl.LightningModule):
             return loss_disc_all
 
     def training_step_dur(self, batch: Batch):
+        hidden_x = self.hidden_x
+        x_mask = self.x_mask
+        logw_ = self.logw_
+        logw = self.logw
         if self.net_dur_disc is not None:
             y_dur_hat_r, y_dur_hat_g = self.net_dur_disc(
-                self.hidden_x.detach(), self.x_mask.detach(), self.logw_.detach(), self.logw.detach()
+                hidden_x.detach(), x_mask.detach(), logw_.detach(), logw.detach()
             )  # logw is predicted duration, logw_ is real duration
             with autocast(self.device.type, enabled=False):
                 loss_dur_disc, losses_dur_disc_r, losses_dur_disc_g = discriminator_loss(y_dur_hat_r, y_dur_hat_g)
