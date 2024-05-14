@@ -62,10 +62,10 @@ class VitsModel(pl.LightningModule):
         mel_fmin: float = 0.0,
         mel_fmax: Optional[float] = None,
         # model
-        ms_istft_vits: bool = False,
+        ms_istft_vits: bool = True,
         mb_istft_vits: bool = False,
-        istft_vits: bool = True,
-        subbands: bool = False,
+        istft_vits: bool = False,
+        subbands: int = 4,
         gen_istft_n_fft: int = 16,
         gen_istft_hop_size: int = 4,
         inter_channels: int = 192,
