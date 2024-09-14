@@ -37,18 +37,46 @@ def main():
         "--resume_from_single_speaker_checkpoint",
         help="For multi-speaker models only. Converts a single-speaker checkpoint to multi-speaker and resumes training",
     )
-    Trainer.add_argparse_args(parser)
     VitsModel.add_model_specific_args(parser)
+    parser.add_argument(
+        "--accelerator",
+        type=str,
+    )
+    parser.add_argument(
+        "--devices",
+        type=int,
+    )
+    parser.add_argument(
+        "--log_every_n_steps",
+        type=int,
+    )
+    parser.add_argument(
+        "--max_epochs",
+        type=int,
+    )
     parser.add_argument(
         "--seed",
         type=int,
         default=1234
     )
     parser.add_argument(
+        "--resume_from_checkpoint",
+        type=str,
+    )
+    parser.add_argument(
+        "--precision",
+        type=int,
+    )
+    parser.add_argument(
         "--num_ckpt",
         type=int,
         default=1,
         help="# of ckpts saved."
+    )
+    parser.add_argument(
+        "--default_root_dir",
+        type=str,
+        help="Default root dir for checkpoints and logs."
     )
     parser.add_argument(
         "--save_last",
@@ -76,11 +104,28 @@ def main():
         num_speakers = int(config["num_speakers"])
         sample_rate = int(config["audio"]["sample_rate"])
 
-    trainer = Trainer.from_argparse_args(args)
+    # List of argument names to include
+    allowed_args = [
+        "accelerator",
+        "devices",
+        "log_every_n_steps",
+        "max_epochs",
+        "precision",
+        "default_root_dir",
+    ]
+
+    # Filter the arguments
+    filtered_args = {key: value for key, value in vars(args).items() if key in allowed_args}
+
+    # Pass the filtered arguments to Trainer
+
+    trainer = Trainer(**filtered_args)
     if args.checkpoint_epochs is not None:
         trainer.callbacks = [ModelCheckpoint(
             every_n_epochs=args.checkpoint_epochs,
             save_top_k=args.num_ckpt,
+            monitor="val_loss",
+            mode="min",
             save_last=args.save_last
         )]
         _LOGGER.debug(
@@ -147,7 +192,7 @@ def main():
             "Successfully converted single-speaker checkpoint to multi-speaker"
         )
 
-    trainer.fit(model)
+    trainer.fit(model, ckpt_path=args.resume_from_checkpoint)
 
 
 def load_state_dict(model, saved_state_dict):

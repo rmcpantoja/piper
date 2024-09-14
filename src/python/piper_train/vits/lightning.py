@@ -77,6 +77,7 @@ class VitsModel(pl.LightningModule):
     ):
         super().__init__()
         self.save_hyperparameters()
+        self.automatic_optimization = False  # Disable automatic optimization
 
         if (self.hparams.num_speakers > 1) and (self.hparams.gin_channels <= 0):
             # Default gin_channels for multi-speaker model
@@ -186,12 +187,21 @@ class VitsModel(pl.LightningModule):
             batch_size=self.hparams.batch_size,
         )
 
-    def training_step(self, batch: Batch, batch_idx: int, optimizer_idx: int):
-        if optimizer_idx == 0:
-            return self.training_step_g(batch)
+    def training_step(self, batch: Batch, batch_idx: int):
+        # Manually access optimizers
+        opt_g, opt_d = self.optimizers()
 
-        if optimizer_idx == 1:
-            return self.training_step_d(batch)
+        # Perform generator step
+        loss_gen_all = self.training_step_g(batch)
+        opt_g.zero_grad()
+        self.manual_backward(loss_gen_all)
+        opt_g.step()
+
+        # Perform discriminator step
+        loss_disc_all = self.training_step_d(batch)
+        opt_d.zero_grad()
+        self.manual_backward(loss_disc_all)
+        opt_d.step()
 
     def training_step_g(self, batch: Batch):
         x, x_lengths, y, _, spec, spec_lengths, speaker_ids = (
@@ -283,28 +293,28 @@ class VitsModel(pl.LightningModule):
         val_loss = self.training_step_g(batch) + self.training_step_d(batch)
         self.log("val_loss", val_loss)
         print(f"Epoch: {self.current_epoch}. Steps: {self.global_step}")
-        # Generate audio examples
-        for utt_idx, test_utt in enumerate(self._test_dataset):
-            text = test_utt.phoneme_ids.unsqueeze(0).to(self.device)
-            text_lengths = torch.LongTensor([len(test_utt.phoneme_ids)]).to(self.device)
-            scales = [0.667, 1.0, 0.8]
-            sid = (
-                test_utt.speaker_id.to(self.device)
-                if test_utt.speaker_id is not None
-                else None
-            )
-            test_audio = self(text, text_lengths, scales, sid=sid).detach()
+        # # Generate audio examples
+        # for utt_idx, test_utt in enumerate(self._test_dataset):
+        #     text = test_utt.phoneme_ids.unsqueeze(0).to(self.device)
+        #     text_lengths = torch.LongTensor([len(test_utt.phoneme_ids)]).to(self.device)
+        #     scales = [0.667, 1.0, 0.8]
+        #     sid = (
+        #         test_utt.speaker_id.to(self.device)
+        #         if test_utt.speaker_id is not None
+        #         else None
+        #     )
+        #     test_audio = self(text, text_lengths, scales, sid=sid).detach()
 
-            # Scale to make louder in [-1, 1]
-            test_audio = test_audio * (1.0 / max(0.01, abs(test_audio.max())))
+        #     # Scale to make louder in [-1, 1]
+        #     test_audio = test_audio * (1.0 / max(0.01, abs(test_audio.max())))
 
-            tag = test_utt.text or str(utt_idx)
-            self.logger.experiment.add_audio(
-                tag, 
-                test_audio,
-                self.global_step,
-                sample_rate=self.hparams.sample_rate
-            )
+        #     tag = test_utt.text or str(utt_idx)
+        #     self.logger.experiment.add_audio(
+        #         tag, 
+        #         test_audio,
+        #         self.global_step,
+        #         sample_rate=self.hparams.sample_rate
+        #     )
 
         return val_loss
 
