@@ -65,7 +65,7 @@ def main():
     )
     parser.add_argument(
         "--precision",
-        type=int,
+        type=str,
     )
     parser.add_argument(
         "--num_ckpt",
