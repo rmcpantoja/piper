@@ -84,6 +84,18 @@ def main():
         default=None,
         help="Always save the last checkpoint."
     )
+    parser.add_argument(
+        "--monitor",
+        type=str,
+        default="val_loss",
+        help="Metric to monitor."
+    )
+    parser.add_argument(
+        "--monitor_mode",
+        type=str,
+        default="min",
+        help="Mode to monitor."
+    )
     args = parser.parse_args()
     _LOGGER.debug(args)
 
@@ -124,8 +136,8 @@ def main():
         trainer.callbacks = [ModelCheckpoint(
             every_n_epochs=args.checkpoint_epochs,
             save_top_k=args.num_ckpt,
-            monitor="val_loss",
-            mode="min",
+            monitor=args.monitor,
+            mode=args.monitor_mode,
             save_last=args.save_last
         )]
         _LOGGER.debug(
