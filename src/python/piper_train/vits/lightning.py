@@ -8,7 +8,6 @@ from torch import autocast
 from torch.nn import functional as F
 from torch.utils.data import DataLoader, Dataset, random_split
 import matplotlib.pyplot as plt
-from IPython.display import display, clear_output
 
 from .commons import slice_segments
 from .dataset import Batch, PiperDataset, UtteranceCollate
@@ -124,7 +123,7 @@ class VitsModel(pl.LightningModule):
         self._y = None
         self._y_hat = None
 
-        if self.hparams.show_plot:
+        if self.hparams.show_plot or self.hparams.plot_save_path:
             # Initialize plot
             self.fig, self.ax = plt.subplots()
             self.gen_losses = []
@@ -348,7 +347,7 @@ class VitsModel(pl.LightningModule):
         return val_loss
     
     def on_train_epoch_end(self):
-        if not self.hparams.show_plot:
+        if not self.hparams.show_plot and not self.hparams.plot_save_path:
             return
 
         avg_gen_loss = self.trainer.callback_metrics.get("gen_loss")
@@ -399,8 +398,8 @@ class VitsModel(pl.LightningModule):
         return optimizers, schedulers
 
     def update_plot(self):
-        if not self.hparams.show_plot:
-            raise ValueError("show_plot is not enabled")
+        if not self.hparams.show_plot and not self.hparams.plot_save_path:
+            raise ValueError("show_plot or plot_save_path must be set to update plot")
         self.ax.clear()
 
         self.ax.plot(self.epochs, self.gen_losses, label='Generator Loss')
@@ -413,9 +412,13 @@ class VitsModel(pl.LightningModule):
         self.ax.set_title(title)
         self.ax.get_figure().canvas.manager.set_window_title(title)
         self.ax.grid(True)
-        plt.draw()
-        clear_output(wait=True)
-        plt.pause(0.01)
+
+        if self.hparams.show_plot:
+            plt.draw()
+            plt.pause(0.01)
+
+        if self.hparams.plot_save_path:
+            self.ax.get_figure().savefig(self.hparams.plot_save_path)
 
     @staticmethod
     def add_model_specific_args(parent_parser):
@@ -439,5 +442,6 @@ class VitsModel(pl.LightningModule):
         parser.add_argument("--lr-reduce-patience", type=int, default=10)
         
         parser.add_argument("--show-plot", type=bool, default=False)
-        #
+        parser.add_argument("--plot-save-path", type=str, default="plot.png")
+
         return parent_parser
