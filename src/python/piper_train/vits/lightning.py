@@ -442,6 +442,6 @@ class VitsModel(pl.LightningModule):
         parser.add_argument("--lr-reduce-patience", type=int, default=10)
         
         parser.add_argument("--show-plot", type=bool, default=False)
-        parser.add_argument("--plot-save-path", type=str, default="plot.png")
+        parser.add_argument("--plot-save-path", type=str, default=None)
 
         return parent_parser
