@@ -63,6 +63,8 @@ class VitsModel(pl.LightningModule):
         eps: float = 1e-9,
         batch_size: int = 1,
         lr_decay: float = 0.999875,
+        lr_reduce_patience: int = 10,
+        lr_reduce_factor: float = 0.5,
         init_lr_ratio: float = 1.0,
         warmup_epochs: int = 0,
         c_mel: int = 45,
@@ -338,12 +340,13 @@ class VitsModel(pl.LightningModule):
                 eps=self.hparams.eps,
             ),
         ]
+        print("TESTING", self.hparams.lr_reduce_factor, self.hparams.lr_reduce_patience)
         schedulers = [
             torch.optim.lr_scheduler.ReduceLROnPlateau(
-                optimizers[0], mode='min', factor=0.1, patience=10, verbose=True
+                optimizers[0], mode='min', factor=self.hparams.lr_reduce_factor, patience=self.hparams.lr_reduce_patience, verbose=True
             ),
             torch.optim.lr_scheduler.ReduceLROnPlateau(
-                optimizers[1], mode='min', factor=0.1, patience=10, verbose=True
+                optimizers[1], mode='min', factor=self.hparams.lr_reduce_factor, patience=self.hparams.lr_reduce_patience, verbose=True
             ),
         ]
 
@@ -366,5 +369,8 @@ class VitsModel(pl.LightningModule):
         parser.add_argument("--filter-channels", type=int, default=768)
         parser.add_argument("--n-layers", type=int, default=6)
         parser.add_argument("--n-heads", type=int, default=2)
+
+        parser.add_argument("--lr-reduce-factor", type=float, default=0.5)
+        parser.add_argument("--lr-reduce-patience", type=int, default=10)
         #
         return parent_parser

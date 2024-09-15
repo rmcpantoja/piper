@@ -97,6 +97,12 @@ def main():
         default="min",
         help="Mode to monitor."
     )
+    parser.add_argument(
+        "--early_stop_patience",
+        type=int,
+        default=20,
+        help="Early stopping patience."
+    )
     args = parser.parse_args()
     _LOGGER.debug(args)
 
@@ -152,7 +158,7 @@ def main():
     # Early stopping callback
     early_stopping_callback = EarlyStopping(
         monitor='val_loss',
-        patience=10,
+        patience=args.early_stop_patience,
         verbose=True,
         mode='min'
     )
