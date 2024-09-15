@@ -15,6 +15,8 @@ _LOGGER = logging.getLogger(__package__)
 def main():
     logging.basicConfig(level=logging.DEBUG)
     logging.getLogger("fsspec").setLevel(logging.WARNING)
+    logging.getLogger("matplotlib").setLevel(logging.WARNING)
+    logging.getLogger("PIL").setLevel(logging.WARNING)
 
     parser = argparse.ArgumentParser()
     parser.add_argument(

@@ -10,3 +10,5 @@ torch==2.4.0+cu121
 torchmetrics==1.4.2
 onnx==1.16.2
 onnxruntime-gpu==1.19.2
+matplotlib==3.9.2
+ipython==8.27.0

@@ -7,6 +7,8 @@ import torch
 from torch import autocast
 from torch.nn import functional as F
 from torch.utils.data import DataLoader, Dataset, random_split
+import matplotlib.pyplot as plt
+from IPython.display import display, clear_output
 
 from .commons import slice_segments
 from .dataset import Batch, PiperDataset, UtteranceCollate
@@ -75,6 +77,7 @@ class VitsModel(pl.LightningModule):
         num_test_examples: int = 5,
         validation_split: float = 0.1,
         max_phoneme_ids: Optional[int] = None,
+        show_plot = False,
         **kwargs,
     ):
         super().__init__()
@@ -120,6 +123,14 @@ class VitsModel(pl.LightningModule):
         # State kept between training optimizers
         self._y = None
         self._y_hat = None
+
+        if self.hparams.show_plot:
+            # Initialize plot
+            self.fig, self.ax = plt.subplots()
+            self.gen_losses = []
+            self.disc_losses = []
+            self.val_losses = []
+            self.epochs = []
 
     def _load_datasets(
         self,
@@ -204,6 +215,8 @@ class VitsModel(pl.LightningModule):
         opt_d.zero_grad()
         self.manual_backward(loss_disc_all)
         opt_d.step()
+
+        return {"loss_gen": loss_gen_all, "loss_disc": loss_disc_all}
 
     def training_step_g(self, batch: Batch):
         x, x_lengths, y, _, spec, spec_lengths, speaker_ids = (
@@ -300,6 +313,7 @@ class VitsModel(pl.LightningModule):
 
     def validation_step(self, batch: Batch, batch_idx: int):
         val_loss = self.training_step_g(batch) + self.training_step_d(batch)
+
         self.log("step", self.global_step, prog_bar=True)
         self.log("val_loss", val_loss)
 
@@ -332,6 +346,31 @@ class VitsModel(pl.LightningModule):
         scheduler_d.step(val_loss)
 
         return val_loss
+    
+    def on_train_epoch_end(self):
+        if not self.hparams.show_plot:
+            return
+
+        avg_gen_loss = self.trainer.callback_metrics.get("gen_loss")
+        avg_disc_loss = self.trainer.callback_metrics.get("disc_loss")
+
+        avg_gen_loss_cpu = avg_gen_loss.detach().cpu() if avg_gen_loss.is_cuda else avg_gen_loss.detach()
+        self.gen_losses.append(avg_gen_loss_cpu)
+
+        avg_disc_loss_cpu = avg_disc_loss.detach().cpu() if avg_disc_loss.is_cuda else avg_disc_loss.detach()
+        self.disc_losses.append(avg_disc_loss_cpu)
+
+        # Capture validation loss
+        val_loss = self.trainer.callback_metrics.get("val_loss")
+        if val_loss is not None:
+            val_loss_cpu = val_loss.detach().cpu() if val_loss.is_cuda else val_loss.detach()
+            self.val_losses.append(val_loss_cpu)
+
+        # Update epochs for plot
+        self.epochs.append(self.current_epoch)
+
+        # Update plot
+        self.update_plot()
 
     def configure_optimizers(self):
         optimizers = [
@@ -359,6 +398,25 @@ class VitsModel(pl.LightningModule):
 
         return optimizers, schedulers
 
+    def update_plot(self):
+        if not self.hparams.show_plot:
+            raise ValueError("show_plot is not enabled")
+        self.ax.clear()
+
+        self.ax.plot(self.epochs, self.gen_losses, label='Generator Loss')
+        self.ax.plot(self.epochs, self.disc_losses, label='Discriminator Loss')
+        self.ax.plot(self.epochs, self.val_losses, label='Validation Loss')
+        self.ax.set_xlabel('Epoch')
+        self.ax.set_ylabel('Loss')
+        self.ax.legend()
+        title = F'Training Progress - Epoch: {self.current_epoch}'
+        self.ax.set_title(title)
+        self.ax.get_figure().canvas.manager.set_window_title(title)
+        self.ax.grid(True)
+        plt.draw()
+        clear_output(wait=True)
+        plt.pause(0.01)
+
     @staticmethod
     def add_model_specific_args(parent_parser):
         parser = parent_parser.add_argument_group("VitsModel")
@@ -379,5 +437,7 @@ class VitsModel(pl.LightningModule):
 
         parser.add_argument("--lr-reduce-factor", type=float, default=0.5)
         parser.add_argument("--lr-reduce-patience", type=int, default=10)
+        
+        parser.add_argument("--show-plot", type=bool, default=False)
         #
         return parent_parser
