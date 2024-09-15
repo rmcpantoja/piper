@@ -112,6 +112,17 @@ def main():
 
     torch.backends.cudnn.benchmark = True
     torch.manual_seed(args.seed)
+    
+    # Function to check if the GPU supports Tensor Cores
+    def supports_tensor_cores():
+        # Assuming that Tensor Cores are supported if the compute capability is 7.0 or higher
+        # This is a simplification; you might need a more detailed check based on your specific requirements
+        return torch.cuda.get_device_capability(0)[0] >= 7
+
+    # Set the float32 matrix multiplication precision based on GPU support for Tensor Cores
+    if supports_tensor_cores():
+        # Set to 'high' or 'medium' based on your preference
+        torch.set_float32_matmul_precision('high')
 
     config_path = args.dataset_dir / "config.json"
     dataset_path = args.dataset_dir / "dataset.jsonl"

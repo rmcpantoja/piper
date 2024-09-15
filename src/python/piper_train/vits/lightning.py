@@ -270,7 +270,11 @@ class VitsModel(pl.LightningModule):
             loss_gen, _losses_gen = generator_loss(y_d_hat_g)
             loss_gen_all = loss_gen + loss_fm + loss_mel + loss_dur + loss_kl
 
-            self.log("loss_gen_all", loss_gen_all)
+            loss_gen_lr = self.trainer.optimizers[0].param_groups[0]['lr']
+
+            self.log("gen_loss", loss_gen_all)
+            self.log("gen_lr", loss_gen_lr)
+            self.log("step", self.global_step, prog_bar=True)
 
             return loss_gen_all
 
@@ -287,12 +291,16 @@ class VitsModel(pl.LightningModule):
             )
             loss_disc_all = loss_disc
 
-            self.log("loss_disc_all", loss_disc_all)
+            loss_disc_lr = self.trainer.optimizers[1].param_groups[0]['lr']
+            self.log("disc_loss", loss_disc_all)
+            self.log("disc_lr", loss_disc_lr)
+            self.log("step", self.global_step, prog_bar=True)
 
             return loss_disc_all
 
     def validation_step(self, batch: Batch, batch_idx: int):
         val_loss = self.training_step_g(batch) + self.training_step_d(batch)
+        self.log("step", self.global_step, prog_bar=True)
         self.log("val_loss", val_loss)
 
         # # Generate audio examples
@@ -340,13 +348,12 @@ class VitsModel(pl.LightningModule):
                 eps=self.hparams.eps,
             ),
         ]
-        print("TESTING", self.hparams.lr_reduce_factor, self.hparams.lr_reduce_patience)
         schedulers = [
             torch.optim.lr_scheduler.ReduceLROnPlateau(
-                optimizers[0], mode='min', factor=self.hparams.lr_reduce_factor, patience=self.hparams.lr_reduce_patience, verbose=True
+                optimizers[0], mode='min', factor=self.hparams.lr_reduce_factor, patience=self.hparams.lr_reduce_patience
             ),
             torch.optim.lr_scheduler.ReduceLROnPlateau(
-                optimizers[1], mode='min', factor=self.hparams.lr_reduce_factor, patience=self.hparams.lr_reduce_patience, verbose=True
+                optimizers[1], mode='min', factor=self.hparams.lr_reduce_factor, patience=self.hparams.lr_reduce_patience
             ),
         ]
 
