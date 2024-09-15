@@ -23,4 +23,4 @@ lightning_logs/
 
 dataset
 training
-last.ckpt
+*.ckpt

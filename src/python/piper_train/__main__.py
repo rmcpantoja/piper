@@ -5,7 +5,7 @@ from pathlib import Path
 
 import torch
 from pytorch_lightning import Trainer
-from pytorch_lightning.callbacks import ModelCheckpoint
+from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping, LearningRateMonitor
 
 from .vits.lightning import VitsModel
 
@@ -14,6 +14,7 @@ _LOGGER = logging.getLogger(__package__)
 
 def main():
     logging.basicConfig(level=logging.DEBUG)
+    logging.getLogger("fsspec").setLevel(logging.WARNING)
 
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -129,23 +130,39 @@ def main():
     # Filter the arguments
     filtered_args = {key: value for key, value in vars(args).items() if key in allowed_args}
 
-    # Pass the filtered arguments to Trainer
+    # Initialize callbacks
+    callbacks = []
 
-    trainer = Trainer(**filtered_args)
     if args.checkpoint_epochs is not None:
-        trainer.callbacks = [ModelCheckpoint(
+        checkpoint_callback = ModelCheckpoint(
             every_n_epochs=args.checkpoint_epochs,
             save_top_k=args.num_ckpt,
             monitor=args.monitor,
             mode=args.monitor_mode,
             save_last=args.save_last
-        )]
+        )
+        callbacks.append(checkpoint_callback)
         _LOGGER.debug(
             "Checkpoints will be saved every %s epoch(s)", args.checkpoint_epochs
         )
         _LOGGER.debug(
             "%s Checkpoints will be saved", args.num_ckpt
         )
+
+    # Early stopping callback
+    early_stopping_callback = EarlyStopping(
+        monitor='val_loss',
+        patience=10,
+        verbose=True,
+        mode='min'
+    )
+    callbacks.append(early_stopping_callback)
+
+    # Learning rate monitor callback
+    lr_monitor_callback = LearningRateMonitor(logging_interval='epoch')
+    callbacks.append(lr_monitor_callback)
+
+    trainer = Trainer(**filtered_args, callbacks=callbacks)
 
     dict_args = vars(args)
     if args.quality == "x-low":

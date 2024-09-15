@@ -292,7 +292,7 @@ class VitsModel(pl.LightningModule):
     def validation_step(self, batch: Batch, batch_idx: int):
         val_loss = self.training_step_g(batch) + self.training_step_d(batch)
         self.log("val_loss", val_loss)
-        print(f"Epoch: {self.current_epoch}. Steps: {self.global_step}")
+
         # # Generate audio examples
         # for utt_idx, test_utt in enumerate(self._test_dataset):
         #     text = test_utt.phoneme_ids.unsqueeze(0).to(self.device)
@@ -316,6 +316,11 @@ class VitsModel(pl.LightningModule):
         #         sample_rate=self.hparams.sample_rate
         #     )
 
+        # Step the scheduler with the validation loss
+        scheduler_g, scheduler_d = self.lr_schedulers()
+        scheduler_g.step(val_loss)
+        scheduler_d.step(val_loss)
+
         return val_loss
 
     def configure_optimizers(self):
@@ -334,11 +339,11 @@ class VitsModel(pl.LightningModule):
             ),
         ]
         schedulers = [
-            torch.optim.lr_scheduler.ExponentialLR(
-                optimizers[0], gamma=self.hparams.lr_decay
+            torch.optim.lr_scheduler.ReduceLROnPlateau(
+                optimizers[0], mode='min', factor=0.1, patience=10, verbose=True
             ),
-            torch.optim.lr_scheduler.ExponentialLR(
-                optimizers[1], gamma=self.hparams.lr_decay
+            torch.optim.lr_scheduler.ReduceLROnPlateau(
+                optimizers[1], mode='min', factor=0.1, patience=10, verbose=True
             ),
         ]
 
