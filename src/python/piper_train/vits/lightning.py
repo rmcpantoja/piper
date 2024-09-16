@@ -362,10 +362,11 @@ class VitsModel(pl.LightningModule):
         #         sample_rate=self.hparams.sample_rate
         #     )
 
-        # Step the scheduler with the validation loss
-        scheduler_g, scheduler_d = self.lr_schedulers()
-        scheduler_g.step(val_loss)
-        scheduler_d.step(val_loss)
+        if self.hparams.lr_reduce_enabled:
+            # Step the scheduler with the validation loss
+            scheduler_g, scheduler_d = self.lr_schedulers()
+            scheduler_g.step(val_loss)
+            scheduler_d.step(val_loss)
 
         return val_loss
     
