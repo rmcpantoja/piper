@@ -128,6 +128,7 @@ class VitsModel(pl.LightningModule):
         if self.hparams.show_plot or self.hparams.plot_save_path:
             # Initialize plot
             self.fig, self.ax = plt.subplots()
+            self.ax2 = None
             self.gen_losses = []
             self.disc_losses = []
             self.val_losses = []
@@ -424,8 +425,6 @@ class VitsModel(pl.LightningModule):
         return optimizers, schedulers
 
     def update_plot(self):
-        if not self.hparams.show_plot and not self.hparams.plot_save_path:
-            raise ValueError("show_plot or plot_save_path must be set to update plot")
         self.ax.clear()
 
         self.ax.plot(self.epochs, self.gen_losses, label='Generator Loss', color='tab:blue')
@@ -433,15 +432,18 @@ class VitsModel(pl.LightningModule):
         self.ax.plot(self.epochs, self.val_losses, label='Validation Loss', color='tab:green')
         self.ax.set_xlabel('Epoch')
         self.ax.set_ylabel('Loss')
-        self.ax.legend(loc='upper left')
 
         # Create a secondary y-axis for the learning rate
-        ax2 = self.ax.twinx()
-        ax2.plot(self.epochs, self.gen_lrs, label='Generator Learning Rate', color='tab:red')
-        ax2.plot(self.epochs, self.disc_lrs, label='Discriminator Learning Rate', color='tab:purple')
-        ax2.set_xlabel('Epoch')
-        ax2.set_ylabel('Learning Rate')
-        ax2.legend(loc='upper right')
+        if self.ax2 is not None:
+            self.ax2.clear()
+        self.ax2 = self.ax.twinx()
+        self.ax2.plot(self.epochs, self.gen_lrs, label='Generator Learning Rate', color='tab:red')
+        self.ax2.plot(self.epochs, self.disc_lrs, label='Discriminator Learning Rate', color='tab:purple')
+        self.ax2.set_xlabel('Epoch')
+        self.ax2.set_ylabel('Learning Rate')
+
+        self.ax.legend(loc='upper left')
+        self.ax2.legend(loc='upper right')
 
         title = F'Training Progress - Epoch: {self.current_epoch}'
         self.ax.set_title(title)
