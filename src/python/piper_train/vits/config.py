@@ -116,7 +116,7 @@ class TrainingConfig:
     eps: float = 1e-9
     # batch_size: int = 32
     fp16_run: bool = False
-    #lr_decay: float = 0.999875 # Disable fixed learning rate decay as it's handled by ReduceLROnPlateau
+    lr_decay: float = 0.999875
     init_lr_ratio: float = 1.0
     warmup_epochs: int = 0
     c_mel: int = 45

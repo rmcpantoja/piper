@@ -61,11 +61,12 @@ class VitsModel(pl.LightningModule):
         dataset: Optional[List[Union[str, Path]]] = None,
         learning_rate: float = 2e-4,
         override_learning_rate: bool = False,
-        weight_decay: float = 1e-6,
+        weight_decay: float = 1e-2,
         betas: Tuple[float, float] = (0.8, 0.99),
         eps: float = 1e-9,
         batch_size: int = 1,
         lr_decay: float = 0.999875,
+        lr_reduce_enabled: bool = False,
         lr_reduce_patience: int = 10,
         lr_reduce_factor: float = 0.5,
         init_lr_ratio: float = 1.0,
@@ -423,14 +424,26 @@ class VitsModel(pl.LightningModule):
                 weight_decay=self.hparams.weight_decay,
             ),
         ]
-        schedulers = [
-            torch.optim.lr_scheduler.ReduceLROnPlateau(
-                optimizers[0], mode='min', factor=self.hparams.lr_reduce_factor, patience=self.hparams.lr_reduce_patience
-            ),
-            torch.optim.lr_scheduler.ReduceLROnPlateau(
-                optimizers[1], mode='min', factor=self.hparams.lr_reduce_factor, patience=self.hparams.lr_reduce_patience
-            ),
-        ]
+
+
+        if self.hparams.lr_reduce_enabled:
+            schedulers = [
+                torch.optim.lr_scheduler.ReduceLROnPlateau(
+                    optimizers[0], mode='min', factor=self.hparams.lr_reduce_factor, patience=self.hparams.lr_reduce_patience
+                ),
+                torch.optim.lr_scheduler.ReduceLROnPlateau(
+                    optimizers[1], mode='min', factor=self.hparams.lr_reduce_factor, patience=self.hparams.lr_reduce_patience
+                ),
+            ]
+        else:
+            schedulers = [
+                torch.optim.lr_scheduler.ExponentialLR(
+                    optimizers[0], gamma=self.hparams.lr_decay
+                ),
+                torch.optim.lr_scheduler.ExponentialLR(
+                    optimizers[1], gamma=self.hparams.lr_decay
+                )
+            ]
 
         return optimizers, schedulers
 
@@ -485,6 +498,8 @@ class VitsModel(pl.LightningModule):
         parser.add_argument("--n-layers", type=int, default=6)
         parser.add_argument("--n-heads", type=int, default=2)
 
+        parser.add_argument("--lr-decay", type=float, default=0.999875)
+        parser.add_argument("--lr-reduce-enabled", type=bool, default=False)
         parser.add_argument("--lr-reduce-factor", type=float, default=0.5)
         parser.add_argument("--lr-reduce-patience", type=int, default=10)
         
@@ -492,7 +507,7 @@ class VitsModel(pl.LightningModule):
         parser.add_argument("--plot-save-path", type=str, default=None)
 
         parser.add_argument("--learning-rate", type=float, default=2e-4)
-        parser.add_argument("--weight-decay", type=float, default=1e-6)
+        parser.add_argument("--weight-decay", type=float, default=1e-2)
         parser.add_argument("--override-learning-rate", type=bool, default=False)
         parser.add_argument("--grad-clip", type=float, default=None)
 

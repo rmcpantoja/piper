@@ -102,7 +102,7 @@ def main():
     parser.add_argument(
         "--early_stop_patience",
         type=int,
-        default=20,
+        default=0,
         help="Early stopping patience."
     )
     args = parser.parse_args()
@@ -168,14 +168,15 @@ def main():
             "%s Checkpoints will be saved", args.num_ckpt
         )
 
-    # Early stopping callback
-    early_stopping_callback = EarlyStopping(
-        monitor='val_loss',
-        patience=args.early_stop_patience,
-        verbose=True,
-        mode='min'
-    )
-    callbacks.append(early_stopping_callback)
+    if args.early_stop_patience > 0:
+        # Early stopping callback
+        early_stopping_callback = EarlyStopping(
+            monitor='val_loss',
+            patience=args.early_stop_patience,
+            verbose=True,
+            mode='min'
+        )
+        callbacks.append(early_stopping_callback)
 
     # Learning rate monitor callback
     lr_monitor_callback = LearningRateMonitor(logging_interval='epoch')
