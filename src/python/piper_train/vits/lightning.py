@@ -60,6 +60,8 @@ class VitsModel(pl.LightningModule):
         # training
         dataset: Optional[List[Union[str, Path]]] = None,
         learning_rate: float = 2e-4,
+        override_learning_rate: bool = False,
+        weight_decay: float = 1e-6,
         betas: Tuple[float, float] = (0.8, 0.99),
         eps: float = 1e-9,
         batch_size: int = 1,
@@ -203,6 +205,16 @@ class VitsModel(pl.LightningModule):
         # Manually access optimizers
         opt_g, opt_d = self.optimizers()
 
+        if self.first_epoch:
+            if self.hparams.override_learning_rate:
+                _LOGGER.info("First epoch, overriding learning rate to %f", self.hparams.learning_rate)
+                for param_group in opt_g.param_groups:
+                    param_group['lr'] = self.hparams.learning_rate
+                for param_group in opt_d.param_groups:
+                    param_group['lr'] = self.hparams.learning_rate
+                self.first_epoch = False
+
+
         # Perform generator step
         loss_gen_all = self.training_step_g(batch)
         opt_g.zero_grad()
@@ -214,6 +226,11 @@ class VitsModel(pl.LightningModule):
         opt_d.zero_grad()
         self.manual_backward(loss_disc_all)
         opt_d.step()
+
+        # Log learning rates
+        self.log("gen_lr", opt_g.param_groups[0]['lr'])
+        self.log("disc_lr", opt_d.param_groups[0]['lr'])
+        self.log("step", self.global_step, prog_bar=True)
 
         return {"loss_gen": loss_gen_all, "loss_disc": loss_disc_all}
 
@@ -282,11 +299,7 @@ class VitsModel(pl.LightningModule):
             loss_gen, _losses_gen = generator_loss(y_d_hat_g)
             loss_gen_all = loss_gen + loss_fm + loss_mel + loss_dur + loss_kl
 
-            loss_gen_lr = self.trainer.optimizers[0].param_groups[0]['lr']
-
             self.log("gen_loss", loss_gen_all)
-            self.log("gen_lr", loss_gen_lr)
-            self.log("step", self.global_step, prog_bar=True)
 
             return loss_gen_all
 
@@ -303,17 +316,13 @@ class VitsModel(pl.LightningModule):
             )
             loss_disc_all = loss_disc
 
-            loss_disc_lr = self.trainer.optimizers[1].param_groups[0]['lr']
             self.log("disc_loss", loss_disc_all)
-            self.log("disc_lr", loss_disc_lr)
-            self.log("step", self.global_step, prog_bar=True)
 
             return loss_disc_all
 
     def validation_step(self, batch: Batch, batch_idx: int):
         val_loss = self.training_step_g(batch) + self.training_step_d(batch)
 
-        self.log("step", self.global_step, prog_bar=True)
         self.log("val_loss", val_loss)
 
         # # Generate audio examples
@@ -371,6 +380,9 @@ class VitsModel(pl.LightningModule):
         # Update plot
         self.update_plot()
 
+    def on_train_start(self):
+        self.first_epoch = True
+
     def configure_optimizers(self):
         optimizers = [
             torch.optim.AdamW(
@@ -378,12 +390,14 @@ class VitsModel(pl.LightningModule):
                 lr=self.hparams.learning_rate,
                 betas=self.hparams.betas,
                 eps=self.hparams.eps,
+                weight_decay=self.hparams.weight_decay,
             ),
             torch.optim.AdamW(
                 self.model_d.parameters(),
                 lr=self.hparams.learning_rate,
                 betas=self.hparams.betas,
                 eps=self.hparams.eps,
+                weight_decay=self.hparams.weight_decay,
             ),
         ]
         schedulers = [
@@ -443,5 +457,9 @@ class VitsModel(pl.LightningModule):
         
         parser.add_argument("--show-plot", type=bool, default=False)
         parser.add_argument("--plot-save-path", type=str, default=None)
+
+        parser.add_argument("--learning-rate", type=float, default=2e-4)
+        parser.add_argument("--weight-decay", type=float, default=1e-6)
+        parser.add_argument("--override-learning-rate", type=bool, default=False)
 
         return parent_parser
