@@ -132,6 +132,8 @@ class VitsModel(pl.LightningModule):
             self.disc_losses = []
             self.val_losses = []
             self.epochs = []
+            self.gen_lrs = []
+            self.disc_lrs = []
 
     def _load_datasets(
         self,
@@ -370,9 +372,19 @@ class VitsModel(pl.LightningModule):
 
         # Capture validation loss
         val_loss = self.trainer.callback_metrics.get("val_loss")
-        if val_loss is not None:
-            val_loss_cpu = val_loss.detach().cpu() if val_loss.is_cuda else val_loss.detach()
-            self.val_losses.append(val_loss_cpu)
+        val_loss_cpu = val_loss.detach().cpu() if val_loss.is_cuda else val_loss.detach()
+        self.val_losses.append(val_loss_cpu)
+
+
+        # Capture learning rate
+        gen_lr = self.trainer.callback_metrics.get("gen_lr")
+        disc_lr = self.trainer.callback_metrics.get("disc_lr")
+
+        gen_lr_cpu = gen_lr.detach().cpu() if gen_lr.is_cuda else gen_lr.detach()
+        disc_lr_cpu = disc_lr.detach().cpu() if disc_lr.is_cuda else disc_lr.detach()
+
+        self.gen_lrs.append(gen_lr_cpu)
+        self.disc_lrs.append(disc_lr_cpu)
 
         # Update epochs for plot
         self.epochs.append(self.current_epoch)
@@ -416,12 +428,21 @@ class VitsModel(pl.LightningModule):
             raise ValueError("show_plot or plot_save_path must be set to update plot")
         self.ax.clear()
 
-        self.ax.plot(self.epochs, self.gen_losses, label='Generator Loss')
-        self.ax.plot(self.epochs, self.disc_losses, label='Discriminator Loss')
-        self.ax.plot(self.epochs, self.val_losses, label='Validation Loss')
+        self.ax.plot(self.epochs, self.gen_losses, label='Generator Loss', color='tab:blue')
+        self.ax.plot(self.epochs, self.disc_losses, label='Discriminator Loss', color='tab:orange')
+        self.ax.plot(self.epochs, self.val_losses, label='Validation Loss', color='tab:green')
         self.ax.set_xlabel('Epoch')
         self.ax.set_ylabel('Loss')
-        self.ax.legend()
+        self.ax.legend(loc='upper left')
+
+        # Create a secondary y-axis for the learning rate
+        ax2 = self.ax.twinx()
+        ax2.plot(self.epochs, self.gen_lrs, label='Generator Learning Rate', color='tab:red')
+        ax2.plot(self.epochs, self.disc_lrs, label='Discriminator Learning Rate', color='tab:purple')
+        ax2.set_xlabel('Epoch')
+        ax2.set_ylabel('Learning Rate')
+        ax2.legend(loc='upper right')
+
         title = F'Training Progress - Epoch: {self.current_epoch}'
         self.ax.set_title(title)
         self.ax.get_figure().canvas.manager.set_window_title(title)
