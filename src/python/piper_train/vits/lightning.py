@@ -222,12 +222,22 @@ class VitsModel(pl.LightningModule):
         loss_gen_all = self.training_step_g(batch)
         opt_g.zero_grad()
         self.manual_backward(loss_gen_all)
+
+         # Gradient clipping for generator
+        if self.hparams.grad_clip is not None:
+            torch.nn.utils.clip_grad_norm_(self.model_g.parameters(), self.hparams.grad_clip)
+
         opt_g.step()
 
         # Perform discriminator step
         loss_disc_all = self.training_step_d(batch)
         opt_d.zero_grad()
         self.manual_backward(loss_disc_all)
+
+        # Gradient clipping for discriminator
+        if self.hparams.grad_clip is not None:
+            torch.nn.utils.clip_grad_norm_(self.model_d.parameters(), self.hparams.grad_clip)
+
         opt_d.step()
 
         # Log learning rates
@@ -484,5 +494,6 @@ class VitsModel(pl.LightningModule):
         parser.add_argument("--learning-rate", type=float, default=2e-4)
         parser.add_argument("--weight-decay", type=float, default=1e-6)
         parser.add_argument("--override-learning-rate", type=bool, default=False)
+        parser.add_argument("--grad-clip", type=float, default=None)
 
         return parent_parser
