@@ -63,6 +63,11 @@ def main():
         default=1234
     )
     parser.add_argument(
+        "--random_seed",
+        type=bool,
+        default=False
+    )
+    parser.add_argument(
         "--resume_from_checkpoint",
         type=str,
     )
@@ -113,7 +118,13 @@ def main():
         args.default_root_dir = args.dataset_dir
 
     torch.backends.cudnn.benchmark = True
-    torch.manual_seed(args.seed)
+
+    if args.random_seed:
+        seed = torch.seed()
+        _LOGGER.debug("Using random seed: %s", seed)
+    else:
+        torch.manual_seed(args.seed)
+        _LOGGER.debug("Using manual seed: %s", args.seed)
     
     # Function to check if the GPU supports Tensor Cores
     def supports_tensor_cores():
