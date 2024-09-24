@@ -3,7 +3,7 @@ import logging
 import wave
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, List, Optional, Union
+from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
 import numpy as np
 import onnxruntime
@@ -34,14 +34,23 @@ class PiperVoice:
         with open(config_path, "r", encoding="utf-8") as config_file:
             config_dict = json.load(config_file)
 
+        providers: List[Union[str, Tuple[str, Dict[str, Any]]]]
+        if use_cuda:
+            providers = [
+                (
+                    "CUDAExecutionProvider",
+                    {"cudnn_conv_algo_search": "HEURISTIC"},
+                )
+            ]
+        else:
+            providers = ["CPUExecutionProvider"]
+
         return PiperVoice(
             config=PiperConfig.from_dict(config_dict),
             session=onnxruntime.InferenceSession(
                 str(model_path),
                 sess_options=onnxruntime.SessionOptions(),
-                providers=["CPUExecutionProvider"]
-                if not use_cuda
-                else ["CUDAExecutionProvider"],
+                providers=providers,
             ),
         )
 
@@ -153,25 +162,24 @@ class PiperVoice:
             dtype=np.float32,
         )
 
+        args = {
+            "input": phoneme_ids_array,
+            "input_lengths": phoneme_ids_lengths,
+            "scales": scales
+        }
+
+        if self.config.num_speakers <= 1:
+            speaker_id = None
+
         if (self.config.num_speakers > 1) and (speaker_id is None):
             # Default speaker
             speaker_id = 0
 
-        sid = None
-
         if speaker_id is not None:
             sid = np.array([speaker_id], dtype=np.int64)
+            args["sid"] = sid
 
         # Synthesize through Onnx
-        audio = self.session.run(
-            None,
-            {
-                "input": phoneme_ids_array,
-                "input_lengths": phoneme_ids_lengths,
-                "scales": scales,
-                "sid": sid,
-            },
-        )[0].squeeze((0, 1))
+        audio = self.session.run(None, args, )[0].squeeze((0, 1))
         audio = audio_float_to_int16(audio.squeeze())
-
         return audio.tobytes()
